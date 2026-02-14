@@ -6,6 +6,7 @@ import SwiftData
 final class FragmentStore {
     private(set) var fragments: [Fragment] = []
     private(set) var isLoading = false
+    private(set) var errorMessage: String?
 
     private let modelContext: ModelContext
 
@@ -36,14 +37,33 @@ final class FragmentStore {
         loadLocal()
 
         // Sync to backend
-        _ = try await APIClient.shared.createFragment(CreateFragmentRequest(
-            title: title,
-            content: content,
-            sourceUrl: sourceURL?.absoluteString,
-            sourceType: sourceType.rawValue,
-            metadata: nil
-        ))
+        do {
+            _ = try await APIClient.shared.createFragment(CreateFragmentRequest(
+                title: title,
+                content: content,
+                sourceUrl: sourceURL?.absoluteString,
+                sourceType: sourceType.rawValue,
+                metadata: nil
+            ))
+        } catch {
+            errorMessage = "Fragment saved locally but failed to sync: \(error.localizedDescription)"
+        }
     }
+
+    func deleteFragment(_ fragment: Fragment) async throws {
+        let fragmentId = fragment.id
+        modelContext.delete(fragment)
+        try modelContext.save()
+        loadLocal()
+
+        do {
+            try await APIClient.shared.deleteFragment(id: fragmentId)
+        } catch {
+            errorMessage = "Fragment deleted locally but failed to sync: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - Remote queries
 
     func search(query: String) async throws -> [SearchResult] {
         let response = try await APIClient.shared.searchFragments(query: query)
@@ -60,10 +80,21 @@ final class FragmentStore {
         return response.suggestions
     }
 
+    func getInsights(for fragmentId: UUID) async throws -> [InsightResponse] {
+        let response = try await APIClient.shared.listInsights(fragmentId: fragmentId)
+        return response.insights
+    }
+
+    func generateInsights(for fragmentId: UUID) async throws -> [InsightResponse] {
+        let response = try await APIClient.shared.generateInsights(fragmentId: fragmentId)
+        return response.insights
+    }
+
     // MARK: - Sync
 
     func sync() async throws {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
 
         let response = try await APIClient.shared.listFragments()

@@ -8,8 +8,11 @@ struct iPadFragmentDetailView: View {
     @Environment(FragmentStore.self) private var store
     @State private var connections: [ConnectionResult] = []
     @State private var suggestions: [String] = []
+    @State private var insights: [InsightResponse] = []
     @State private var isLoadingConnections = false
     @State private var isLoadingSuggestions = false
+    @State private var isLoadingInsights = false
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         ScrollView {
@@ -38,6 +41,12 @@ struct iPadFragmentDetailView: View {
                             }
                             .padding(.top, 8)
                         }
+
+                        // Insights section below content
+                        if !insights.isEmpty {
+                            insightsSection
+                                .padding(.top, 16)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -64,25 +73,32 @@ struct iPadFragmentDetailView: View {
 
                 Menu {
                     Button("Add to Collection", systemImage: "folder.badge.plus") {}
+                    Button("Generate Insights", systemImage: "brain") {
+                        Task { await generateInsights() }
+                    }
                     Button("Refresh Connections", systemImage: "arrow.triangle.2.circlepath") {
                         Task { await loadConnections() }
                     }
                     Divider()
-                    Button("Delete Fragment", systemImage: "trash", role: .destructive) {}
+                    Button("Delete Fragment", systemImage: "trash", role: .destructive) {
+                        showDeleteConfirm = true
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
             }
-
-            // iPad keyboard shortcuts
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {}
+        }
+        .confirmationDialog("Delete Fragment?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                Task { try? await store.deleteFragment(fragment) }
             }
+        } message: {
+            Text("This action cannot be undone.")
         }
         .task {
             await loadConnections()
             await loadSuggestions()
+            await loadInsights()
         }
     }
 
@@ -117,6 +133,45 @@ struct iPadFragmentDetailView: View {
         }
     }
 
+    // MARK: - Insights
+
+    private var insightsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("AI Insights", systemImage: "brain")
+                .font(.headline)
+
+            ForEach(insights) { insight in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: insightIcon(for: insight.insightType))
+                        .foregroundStyle(.tint)
+                        .font(.caption)
+                        .padding(.top, 2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(insight.insightType.capitalized)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                        Text(insight.content)
+                            .font(.subheadline)
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    private func insightIcon(for type: String) -> String {
+        switch type {
+        case "summary": return "doc.text"
+        case "theme": return "paintpalette"
+        case "suggestion": return "lightbulb"
+        case "relatedTopic": return "arrow.triangle.branch"
+        default: return "sparkle"
+        }
+    }
+
     // MARK: - Connections
 
     private var connectionsSection: some View {
@@ -146,13 +201,23 @@ struct iPadFragmentDetailView: View {
                 .fontWeight(.medium)
                 .lineLimit(2)
 
-            Text(connection.content)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
+            if let summary = connection.aiSummary {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.primary.opacity(0.8))
+                    .lineLimit(3)
+            } else {
+                Text(connection.content)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
 
             HStack {
                 similarityBadge(connection.similarity)
+                Text(connection.sourceType.capitalized)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                 Spacer()
             }
         }
@@ -183,7 +248,7 @@ struct iPadFragmentDetailView: View {
                 ProgressView()
                     .frame(maxWidth: .infinity)
             } else if suggestions.isEmpty {
-                Text("AI suggestions for related topics will appear here.")
+                Text("Suggestions for related topics will appear after analysis.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -213,5 +278,19 @@ struct iPadFragmentDetailView: View {
         isLoadingSuggestions = true
         defer { isLoadingSuggestions = false }
         suggestions = (try? await store.getSuggestions(for: fragment.id)) ?? []
+    }
+
+    private func loadInsights() async {
+        isLoadingInsights = true
+        defer { isLoadingInsights = false }
+        insights = (try? await store.getInsights(for: fragment.id)) ?? []
+    }
+
+    private func generateInsights() async {
+        isLoadingInsights = true
+        defer { isLoadingInsights = false }
+        if let generated = try? await store.generateInsights(for: fragment.id) {
+            insights = generated
+        }
     }
 }

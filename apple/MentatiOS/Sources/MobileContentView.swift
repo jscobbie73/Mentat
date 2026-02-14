@@ -88,13 +88,22 @@ struct MobileContentView: View {
                 .padding(.vertical, 4)
             }
         }
+        .refreshable {
+            try? await store.sync()
+        }
     }
 }
 
-// MARK: - Placeholder views for iOS
+// MARK: - Mobile Fragment Detail
 
 struct MobileFragmentDetailView: View {
     let fragment: Fragment
+
+    @Environment(FragmentStore.self) private var store
+    @State private var connections: [ConnectionResult] = []
+    @State private var suggestions: [String] = []
+    @State private var isLoadingConnections = false
+    @State private var isLoadingSuggestions = false
 
     var body: some View {
         ScrollView {
@@ -103,9 +112,20 @@ struct MobileFragmentDetailView: View {
                     .font(.title)
                     .fontWeight(.bold)
 
-                Label(fragment.sourceType.rawValue.capitalized, systemImage: "tag")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Label(fragment.sourceType.rawValue.capitalized, systemImage: "tag")
+                        .font(.subheadline)
+                        .foregroundStyle(.tint)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.tint.opacity(0.1), in: Capsule())
+
+                    Spacer()
+
+                    Text(fragment.createdAt, style: .date)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Divider()
 
@@ -113,40 +133,163 @@ struct MobileFragmentDetailView: View {
                     .font(.body)
                     .textSelection(.enabled)
 
-                Divider()
-
-                Section {
-                    Text("AI-discovered connections will appear here.")
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("Connections")
-                        .font(.title3)
-                        .fontWeight(.semibold)
+                if let url = fragment.sourceURL {
+                    Link(destination: url) {
+                        Label(url.host ?? url.absoluteString, systemImage: "link")
+                            .font(.subheadline)
+                    }
                 }
 
-                Section {
-                    Text("AI suggestions for further reading will appear here.")
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("Suggestions")
+                Divider()
+
+                // Connections
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Connections", systemImage: "point.3.connected.trianglepath.dotted")
                         .font(.title3)
                         .fontWeight(.semibold)
+
+                    if isLoadingConnections {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                    } else if connections.isEmpty {
+                        Text("No connections discovered yet.")
+                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                    } else {
+                        ForEach(connections) { connection in
+                            mobileConnectionCard(connection)
+                        }
+                    }
+                }
+
+                Divider()
+
+                // Suggestions
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Further Reading", systemImage: "lightbulb")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+
+                    if isLoadingSuggestions {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                    } else if suggestions.isEmpty {
+                        Text("Add more fragments for AI suggestions.")
+                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                    } else {
+                        ForEach(suggestions, id: \.self) { suggestion in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "arrow.right.circle")
+                                    .foregroundStyle(.tint)
+                                    .font(.caption)
+                                    .padding(.top, 3)
+                                Text(suggestion)
+                                    .font(.subheadline)
+                            }
+                        }
+                    }
                 }
             }
             .padding()
         }
         .navigationTitle(fragment.title)
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadConnections()
+            await loadSuggestions()
+        }
+    }
+
+    private func mobileConnectionCard(_ connection: ConnectionResult) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(connection.title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .lineLimit(2)
+
+            if let summary = connection.aiSummary {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.primary.opacity(0.8))
+                    .lineLimit(3)
+            } else {
+                Text(connection.content)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack {
+                let percent = Int(connection.similarity * 100)
+                let color: Color = connection.similarity > 0.9 ? .green : connection.similarity > 0.8 ? .orange : .blue
+                Text("\(percent)% match")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(color.opacity(0.12), in: Capsule())
+
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func loadConnections() async {
+        isLoadingConnections = true
+        defer { isLoadingConnections = false }
+        connections = (try? await store.getConnections(for: fragment.id)) ?? []
+    }
+
+    private func loadSuggestions() async {
+        isLoadingSuggestions = true
+        defer { isLoadingSuggestions = false }
+        suggestions = (try? await store.getSuggestions(for: fragment.id)) ?? []
     }
 }
 
+// MARK: - Placeholder views (will be replaced in Phase 4 & 5)
+
 struct DiscoverView: View {
+    @Environment(FragmentStore.self) private var store
+    @State private var insights: [InsightResponse] = []
+    @State private var isLoading = false
+
     var body: some View {
-        ContentUnavailableView(
-            "Discover Connections",
-            systemImage: "sparkles",
-            description: Text("As you add more fragments, Mentat will surface connections and insights here.")
-        )
+        Group {
+            if isLoading {
+                ProgressView("Loading insights...")
+            } else if insights.isEmpty {
+                ContentUnavailableView(
+                    "Discover Connections",
+                    systemImage: "sparkles",
+                    description: Text("As you add more fragments, Mentat will surface connections and insights here.")
+                )
+            } else {
+                List(insights) { insight in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(insight.insightType.capitalized)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.tint)
+                        Text(insight.content)
+                            .font(.subheadline)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .task {
+            isLoading = true
+            defer { isLoading = false }
+            let response = try? await APIClient.shared.listInsights()
+            insights = response?.insights ?? []
+        }
     }
 }
 
@@ -167,7 +310,12 @@ struct MobileSettingsView: View {
         Form {
             Section("Account") {
                 if authManager.isAuthenticated {
-                    Text("Signed in")
+                    if let user = authManager.currentUser {
+                        LabeledContent("Email", value: user.email)
+                        LabeledContent("Name", value: user.displayName)
+                    } else {
+                        Text("Signed in")
+                    }
                     Button("Sign Out", role: .destructive) {
                         authManager.signOut()
                     }

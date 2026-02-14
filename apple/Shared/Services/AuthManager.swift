@@ -3,13 +3,15 @@ import AuthenticationServices
 
 /// Manages user authentication state across the app.
 @Observable
-final class AuthManager {
+final class AuthManager: NSObject {
     private(set) var isAuthenticated = false
     private(set) var currentUser: UserResponse?
+    private(set) var errorMessage: String?
 
     private let keychain = KeychainHelper.shared
 
-    init() {
+    override init() {
+        super.init()
         // Restore saved session
         if let token = keychain.read(key: "auth_token") {
             Task {
@@ -25,6 +27,7 @@ final class AuthManager {
         keychain.save(key: "auth_token", value: response.token)
         currentUser = response.user
         isAuthenticated = true
+        errorMessage = nil
     }
 
     func register(email: String, password: String, displayName: String) async throws {
@@ -35,6 +38,37 @@ final class AuthManager {
         keychain.save(key: "auth_token", value: response.token)
         currentUser = response.user
         isAuthenticated = true
+        errorMessage = nil
+    }
+
+    func signInWithApple(authorization: ASAuthorization) async throws {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let identityTokenData = credential.identityToken,
+              let identityToken = String(data: identityTokenData, encoding: .utf8),
+              let authCodeData = credential.authorizationCode,
+              let authorizationCode = String(data: authCodeData, encoding: .utf8)
+        else {
+            throw AuthError.missingCredentials
+        }
+
+        let displayName: String?
+        if let fullName = credential.fullName {
+            let parts = [fullName.givenName, fullName.familyName].compactMap { $0 }
+            displayName = parts.isEmpty ? nil : parts.joined(separator: " ")
+        } else {
+            displayName = nil
+        }
+
+        let response = try await APIClient.shared.signInWithApple(
+            identityToken: identityToken,
+            authorizationCode: authorizationCode,
+            displayName: displayName
+        )
+        await APIClient.shared.setAuthToken(response.token)
+        keychain.save(key: "auth_token", value: response.token)
+        currentUser = response.user
+        isAuthenticated = true
+        errorMessage = nil
     }
 
     func signOut() {
@@ -42,6 +76,19 @@ final class AuthManager {
         Task { await APIClient.shared.setAuthToken(nil) }
         currentUser = nil
         isAuthenticated = false
+    }
+}
+
+// MARK: - Errors
+
+enum AuthError: LocalizedError {
+    case missingCredentials
+
+    var errorDescription: String? {
+        switch self {
+        case .missingCredentials:
+            return "Could not retrieve Apple Sign In credentials"
+        }
     }
 }
 
