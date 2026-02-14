@@ -18,7 +18,7 @@ struct MentatiOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MobileContentView()
+            AdaptiveContentView()
                 .environment(authManager)
                 .environment(fragmentStore)
         }
