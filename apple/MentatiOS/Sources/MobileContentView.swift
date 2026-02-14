@@ -294,12 +294,111 @@ struct DiscoverView: View {
 }
 
 struct CollectionsView: View {
+    @Environment(CollectionStore.self) private var collectionStore
+    @Environment(FragmentStore.self) private var fragmentStore
+    @State private var showingNewCollection = false
+    @State private var newCollectionName = ""
+
     var body: some View {
-        ContentUnavailableView(
-            "No Collections Yet",
-            systemImage: "folder",
-            description: Text("Create collections to organize your fragments.")
-        )
+        Group {
+            if collectionStore.collections.isEmpty {
+                ContentUnavailableView(
+                    "No Collections Yet",
+                    systemImage: "folder",
+                    description: Text("Create collections to organize your fragments.")
+                )
+            } else {
+                List {
+                    ForEach(collectionStore.collections) { collection in
+                        NavigationLink {
+                            CollectionDetailView(collection: collection)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(collection.name)
+                                    .font(.headline)
+                                if let desc = collection.collectionDescription {
+                                    Text(desc)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Text("\(collection.fragments.count) fragment\(collection.fragments.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            let collection = collectionStore.collections[index]
+                            Task { try? await collectionStore.deleteCollection(collection) }
+                        }
+                    }
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingNewCollection = true }) {
+                    Image(systemName: "folder.badge.plus")
+                }
+            }
+        }
+        .alert("New Collection", isPresented: $showingNewCollection) {
+            TextField("Collection name", text: $newCollectionName)
+            Button("Create") {
+                guard !newCollectionName.isEmpty else { return }
+                Task {
+                    try? await collectionStore.createCollection(name: newCollectionName)
+                    newCollectionName = ""
+                }
+            }
+            Button("Cancel", role: .cancel) { newCollectionName = "" }
+        }
+        .refreshable {
+            try? await collectionStore.sync()
+        }
+    }
+}
+
+struct CollectionDetailView: View {
+    let collection: Collection
+    @Environment(CollectionStore.self) private var collectionStore
+
+    var body: some View {
+        List {
+            if collection.fragments.isEmpty {
+                ContentUnavailableView(
+                    "Empty Collection",
+                    systemImage: "folder",
+                    description: Text("Add fragments to this collection from the fragment detail view.")
+                )
+            } else {
+                ForEach(collection.fragments) { fragment in
+                    NavigationLink {
+                        MobileFragmentDetailView(fragment: fragment)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(fragment.title)
+                                .font(.headline)
+                                .lineLimit(1)
+                            Text(fragment.content)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .onDelete { indexSet in
+                    for index in indexSet {
+                        let fragment = collection.fragments[index]
+                        Task { try? await collectionStore.removeFragment(fragment, from: collection) }
+                    }
+                }
+            }
+        }
+        .navigationTitle(collection.name)
     }
 }
 

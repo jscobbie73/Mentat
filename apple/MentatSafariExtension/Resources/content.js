@@ -4,15 +4,13 @@
 (function () {
   "use strict";
 
-  // Listen for messages from the background script
+  // Listen for messages from the popup or background script
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === "getSelection") {
+    if (message.action === "getSelection" || message.type === "getSelection") {
       const selection = window.getSelection();
-      sendResponse({
-        selectedText: selection ? selection.toString() : "",
-        pageTitle: document.title,
-        url: window.location.href,
-      });
+      const text = selection ? selection.toString() : "";
+      // Return the selected text directly for the popup's sendMessage call
+      sendResponse(text);
     }
   });
 })();

@@ -7,6 +7,7 @@ struct MentatMacApp: App {
 
     @State private var authManager = AuthManager()
     @State private var fragmentStore: FragmentStore
+    @State private var collectionStore: CollectionStore
 
     init() {
         let schema = Schema([Fragment.self, Collection.self])
@@ -14,13 +15,17 @@ struct MentatMacApp: App {
         let container = try! ModelContainer(for: schema, configurations: [config])
         self.modelContainer = container
         self._fragmentStore = State(initialValue: FragmentStore(modelContext: container.mainContext))
+        self._collectionStore = State(initialValue: CollectionStore(modelContext: container.mainContext))
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(authManager)
-                .environment(fragmentStore)
+            AuthGateView {
+                ContentView()
+            }
+            .environment(authManager)
+            .environment(fragmentStore)
+            .environment(collectionStore)
         }
         .modelContainer(modelContainer)
 

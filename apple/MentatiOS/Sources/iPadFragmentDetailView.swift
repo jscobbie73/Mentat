@@ -6,6 +6,7 @@ struct iPadFragmentDetailView: View {
     let fragment: Fragment
 
     @Environment(FragmentStore.self) private var store
+    @Environment(CollectionStore.self) private var collectionStore
     @State private var connections: [ConnectionResult] = []
     @State private var suggestions: [String] = []
     @State private var insights: [InsightResponse] = []
@@ -13,6 +14,7 @@ struct iPadFragmentDetailView: View {
     @State private var isLoadingSuggestions = false
     @State private var isLoadingInsights = false
     @State private var showDeleteConfirm = false
+    @State private var showCollectionPicker = false
 
     var body: some View {
         ScrollView {
@@ -72,7 +74,9 @@ struct iPadFragmentDetailView: View {
                 )
 
                 Menu {
-                    Button("Add to Collection", systemImage: "folder.badge.plus") {}
+                    Button("Add to Collection", systemImage: "folder.badge.plus") {
+                        showCollectionPicker = true
+                    }
                     Button("Generate Insights", systemImage: "brain") {
                         Task { await generateInsights() }
                     }
@@ -94,6 +98,9 @@ struct iPadFragmentDetailView: View {
             }
         } message: {
             Text("This action cannot be undone.")
+        }
+        .sheet(isPresented: $showCollectionPicker) {
+            AddToCollectionSheet(fragment: fragment)
         }
         .task {
             await loadConnections()

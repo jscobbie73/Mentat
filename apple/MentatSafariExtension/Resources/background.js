@@ -17,7 +17,7 @@ browser.contextMenus.create({
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "save-to-mentat") {
     const response = await browser.runtime.sendNativeMessage(
-      "application.id",
+      "com.mentat.app.Extension",
       {
         action: "capture",
         title: tab.title || "Untitled",
@@ -30,7 +30,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (info.menuItemId === "highlight-to-mentat") {
     const response = await browser.runtime.sendNativeMessage(
-      "application.id",
+      "com.mentat.app.Extension",
       {
         action: "highlight",
         selectedText: info.selectionText,

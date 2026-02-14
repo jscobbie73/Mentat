@@ -192,35 +192,148 @@ struct iPadDiscoverList: View {
     let fragments: [Fragment]
     @Binding var selectedFragment: Fragment?
 
+    @State private var insights: [InsightResponse] = []
+    @State private var isLoading = false
+
     var body: some View {
-        Group {
-            if fragments.isEmpty {
-                ContentUnavailableView(
-                    "Discover Connections",
-                    systemImage: "sparkles",
-                    description: Text("As you add more fragments, Mentat will surface connections and insights here.")
-                )
-            } else {
-                List(fragments, selection: $selectedFragment) { fragment in
-                    NavigationLink(value: fragment) {
-                        iPadFragmentRow(fragment: fragment)
+        List {
+            if !insights.isEmpty {
+                Section("AI Insights") {
+                    ForEach(insights) { insight in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "sparkle")
+                                    .foregroundStyle(.tint)
+                                    .font(.caption)
+                                Text(insight.insightType.capitalized)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.tint)
+                            }
+                            Text(insight.content)
+                                .font(.subheadline)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+
+            Section("Recent Fragments") {
+                if fragments.isEmpty {
+                    ContentUnavailableView(
+                        "No Fragments Yet",
+                        systemImage: "sparkles",
+                        description: Text("Add fragments for Mentat to discover connections.")
+                    )
+                } else {
+                    ForEach(fragments) { fragment in
+                        NavigationLink(value: fragment) {
+                            iPadFragmentRow(fragment: fragment)
+                        }
                     }
                 }
             }
         }
+        .listStyle(.sidebar)
         .navigationTitle("Discover")
+        .overlay {
+            if isLoading && insights.isEmpty && fragments.isEmpty {
+                ProgressView("Loading insights...")
+            }
+        }
+        .task {
+            isLoading = true
+            defer { isLoading = false }
+            let response = try? await APIClient.shared.listInsights()
+            insights = response?.insights ?? []
+        }
     }
 }
 
 // MARK: - iPad Collections List
 
 struct iPadCollectionsList: View {
+    @Environment(CollectionStore.self) private var collectionStore
+    @State private var showingNewCollection = false
+    @State private var newCollectionName = ""
+
     var body: some View {
-        ContentUnavailableView(
-            "No Collections Yet",
-            systemImage: "folder",
-            description: Text("Create collections to organize your fragments.")
-        )
+        Group {
+            if collectionStore.collections.isEmpty {
+                ContentUnavailableView(
+                    "No Collections Yet",
+                    systemImage: "folder",
+                    description: Text("Create collections to organize your fragments.")
+                )
+            } else {
+                List(collectionStore.collections) { collection in
+                    NavigationLink {
+                        iPadCollectionDetailView(collection: collection)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(collection.name)
+                                .font(.headline)
+                            if let desc = collection.collectionDescription {
+                                Text(desc)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Text("\(collection.fragments.count) fragment\(collection.fragments.count == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+        }
         .navigationTitle("Collections")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingNewCollection = true }) {
+                    Image(systemName: "folder.badge.plus")
+                }
+            }
+        }
+        .alert("New Collection", isPresented: $showingNewCollection) {
+            TextField("Collection name", text: $newCollectionName)
+            Button("Create") {
+                guard !newCollectionName.isEmpty else { return }
+                Task {
+                    try? await collectionStore.createCollection(name: newCollectionName)
+                    newCollectionName = ""
+                }
+            }
+            Button("Cancel", role: .cancel) { newCollectionName = "" }
+        }
+    }
+}
+
+struct iPadCollectionDetailView: View {
+    let collection: Collection
+    @Environment(CollectionStore.self) private var collectionStore
+
+    var body: some View {
+        List {
+            if collection.fragments.isEmpty {
+                ContentUnavailableView(
+                    "Empty Collection",
+                    systemImage: "folder",
+                    description: Text("Add fragments from the fragment detail view.")
+                )
+            } else {
+                ForEach(collection.fragments) { fragment in
+                    iPadFragmentRow(fragment: fragment)
+                }
+                .onDelete { indexSet in
+                    for index in indexSet {
+                        let fragment = collection.fragments[index]
+                        Task { try? await collectionStore.removeFragment(fragment, from: collection) }
+                    }
+                }
+            }
+        }
+        .navigationTitle(collection.name)
     }
 }

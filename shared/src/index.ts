@@ -74,6 +74,29 @@ export interface Insight {
   createdAt: string;
 }
 
+// Collection input types
+export interface CreateCollectionInput {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateCollectionInput {
+  name?: string;
+  description?: string | null;
+}
+
+// Connection result (as returned by the API)
+export interface ConnectionResult {
+  id: string | null;
+  fragmentId: string;
+  title: string;
+  content: string;
+  sourceType: FragmentSourceType;
+  similarity: number;
+  aiSummary: string | null;
+  fragmentCreatedAt: string;
+}
+
 // Auth types
 export interface AuthResponse {
   user: {

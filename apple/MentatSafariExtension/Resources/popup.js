@@ -13,7 +13,7 @@ function showStatus(message, type = "") {
 document.getElementById("save-page").addEventListener("click", async () => {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    const response = await browser.runtime.sendNativeMessage("application.id", {
+    const response = await browser.runtime.sendNativeMessage("com.mentat.app.Extension", {
       action: "capture",
       title: tab.title || "Untitled",
       content: tab.title || "",
@@ -33,8 +33,10 @@ document.getElementById("save-page").addEventListener("click", async () => {
 document.getElementById("save-selection").addEventListener("click", async () => {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    const [{ result: selectedText }] = await browser.tabs.executeScript(tab.id, {
-      code: "window.getSelection().toString()",
+
+    // Use sendMessage to content script instead of deprecated executeScript
+    const selectedText = await browser.tabs.sendMessage(tab.id, {
+      type: "getSelection",
     });
 
     if (!selectedText) {
@@ -42,7 +44,7 @@ document.getElementById("save-selection").addEventListener("click", async () => 
       return;
     }
 
-    const response = await browser.runtime.sendNativeMessage("application.id", {
+    const response = await browser.runtime.sendNativeMessage("com.mentat.app.Extension", {
       action: "highlight",
       selectedText,
       url: tab.url,
