@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+*.js.map
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Xcode
+apple/build/
+apple/DerivedData/
+*.xcuserdata/
+*.xcworkspacedata
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+apple/.build/
+apple/Packages/
+
+# CocoaPods (if used)
+apple/Pods/
+
+# Provisioning profiles
+*.mobileprovision
+*.provisionprofile
+
+# Redis dump
+dump.rdb
+
+# Temporary files
+tmp/
+temp/
