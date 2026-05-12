@@ -1,0 +1,58 @@
+name: GenRx
+options:
+  bundleIdPrefix: com.genrx
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15"
+
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.genrx.app
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1"
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "NO"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+
+targets:
+  GenRx:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: Sources
+      - path: Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.genrx.app
+        INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/GenRx.entitlements
+    entitlements:
+      path: Resources/GenRx.entitlements
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleName: GenRx
+        CFBundleDisplayName: GenRx
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchStoryboardName: LaunchScreen
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIRequiresFullScreen: true
+        NSHealthShareUsageDescription: "GenRx reads health data to show context alongside your medication history."
+        NSHealthUpdateUsageDescription: "GenRx writes your dose logs to Apple Health so your doctor can see your adherence history."
+        NSUserNotificationUsageDescription: "GenRx needs permission to remind you when it's time to take your medications."
+    capabilities:
+      - healthkit
+
+  GenRxTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GenRxTests
+    dependencies:
+      - target: GenRx
+
+# Install xcodegen: brew install xcodegen
+# Generate project: xcodegen generate
